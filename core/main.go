@@ -35,7 +35,7 @@ func main() {
 	headless := flag.Bool("headless", false, "Run in headless mode (no GUI, HTTP-only)")
 	autoApprove := flag.Bool("auto-approve", false, "Auto-approve all permission requests (headless only)")
 	keyFile := flag.String("key-file", "", "Path to wallet identity JSON file")
-	bridgeURL := flag.String("bridge-url", "http://127.0.0.1:18789", "URL of the Gebunden Bridge service")
+	bridgeURL := flag.String("bridge-url", "http://127.0.0.1:18790", "URL of the Gebunden Bridge service")
 	flag.Parse()
 
 	if *headless {
@@ -142,8 +142,10 @@ func loadPrivateKey(keyFile string) (privateKeyHex, network string, err error) {
 	// Check env first
 	if envKey := os.Getenv("GEBUNDEN_PRIVATE_KEY"); envKey != "" {
 		net := os.Getenv("GEBUNDEN_NETWORK")
-		if net == "" {
-			net = "mainnet"
+		if net == "" || net == "mainnet" {
+			net = "main"
+		} else if net == "testnet" {
+			net = "test"
 		}
 		return envKey, net, nil
 	}
@@ -186,8 +188,10 @@ func loadPrivateKey(keyFile string) (privateKeyHex, network string, err error) {
 	}
 
 	net := identity.Network
-	if net == "" {
-		net = "mainnet"
+	if net == "" || net == "mainnet" {
+		net = "main"
+	} else if net == "testnet" {
+		net = "test"
 	}
 
 	return identity.RootKeyHex, net, nil

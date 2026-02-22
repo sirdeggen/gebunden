@@ -189,7 +189,7 @@ func (bs *BridgeServer) sendToTelegram(req PermissionRequest) {
 	payload := map[string]interface{}{
 		"chat_id":      bs.telegramChat,
 		"text":         text,
-		"parse_mode":   "MarkdownV2",
+		"parse_mode":   "HTML",
 		"reply_markup": map[string]interface{}{"inline_keyboard": keyboard},
 	}
 	payloadJSON, _ := json.Marshal(payload)
@@ -236,67 +236,66 @@ func (bs *BridgeServer) formatPrompt(req PermissionRequest) string {
 
 	switch req.Type {
 	case "spend":
-		b.WriteString("💸 *Spending Authorization*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("💸 <b>Spending Authorization</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if req.Amount > 0 {
-			b.WriteString(fmt.Sprintf("*Amount:* %d sats\n", req.Amount))
+			b.WriteString(fmt.Sprintf("<b>Amount:</b> %d sats\n", req.Amount))
 		}
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("*Description:* %s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("<b>Description:</b> %s\n", htmlEsc(req.Message)))
 		}
 
 	case "protocol":
-		b.WriteString("🔗 *Protocol Access Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("🔗 <b>Protocol Access Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if pid, ok := req.ExtraData["protocolID"]; ok {
-			b.WriteString(fmt.Sprintf("*Protocol:* %v\n", pid))
+			b.WriteString(fmt.Sprintf("<b>Protocol:</b> %v\n", pid))
 		}
 		if sl, ok := req.ExtraData["securityLevel"]; ok {
-			b.WriteString(fmt.Sprintf("*Security Level:* %v\n", sl))
+			b.WriteString(fmt.Sprintf("<b>Security Level:</b> %v\n", sl))
 		}
 		if cp, ok := req.ExtraData["counterparty"]; ok {
-			b.WriteString(fmt.Sprintf("*Counterparty:* `%s`\n", esc(fmt.Sprint(cp))))
+			b.WriteString(fmt.Sprintf("<b>Counterparty:</b> <code>%s</code>\n", htmlEsc(fmt.Sprint(cp))))
 		}
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("*Reason:* %s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("<b>Reason:</b> %s\n", htmlEsc(req.Message)))
 		}
 
 	case "basket":
-		b.WriteString("🧺 *Basket Access Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("🧺 <b>Basket Access Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if basket, ok := req.ExtraData["basket"]; ok {
-			b.WriteString(fmt.Sprintf("*Basket:* %v\n", basket))
+			b.WriteString(fmt.Sprintf("<b>Basket:</b> %v\n", basket))
 		}
 		if reason, ok := req.ExtraData["reason"]; ok {
-			b.WriteString(fmt.Sprintf("*Reason:* %s\n", esc(fmt.Sprint(reason))))
+			b.WriteString(fmt.Sprintf("<b>Reason:</b> %s\n", htmlEsc(fmt.Sprint(reason))))
 		}
 		if renewal, ok := req.ExtraData["renewal"]; ok && renewal == true {
-			b.WriteString("_\\(renewal\\)_\n")
+			b.WriteString("<i>(renewal)</i>\n")
 		}
 
 	case "certificate":
-		b.WriteString("📜 *Certificate Access Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("📜 <b>Certificate Access Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if ct, ok := req.ExtraData["certificateType"]; ok {
-			b.WriteString(fmt.Sprintf("*Type:* %v\n", ct))
+			b.WriteString(fmt.Sprintf("<b>Type:</b> %v\n", ct))
 		}
 		if vpk, ok := req.ExtraData["verifierPublicKey"]; ok {
-			b.WriteString(fmt.Sprintf("*Verifier:* `%s`\n", esc(fmt.Sprint(vpk))))
+			b.WriteString(fmt.Sprintf("<b>Verifier:</b> <code>%s</code>\n", htmlEsc(fmt.Sprint(vpk))))
 		}
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("*Reason:* %s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("<b>Reason:</b> %s\n", htmlEsc(req.Message)))
 		}
 		if renewal, ok := req.ExtraData["renewal"]; ok && renewal == true {
-			b.WriteString("_\\(renewal\\)_\n")
+			b.WriteString("<i>(renewal)</i>\n")
 		}
 
 	case "group":
-		b.WriteString("📋 *Grouped Permission Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("📋 <b>Grouped Permission Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("%s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("%s\n", htmlEsc(req.Message)))
 		}
-		// Summarize sub-permissions
 		if spend, ok := req.ExtraData["spendingAmount"]; ok {
 			b.WriteString(fmt.Sprintf("• Spending: %v sats\n", spend))
 		}
@@ -311,39 +310,36 @@ func (bs *BridgeServer) formatPrompt(req PermissionRequest) string {
 		}
 
 	case "counterparty":
-		b.WriteString("🤝 *Counterparty Permission Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
+		b.WriteString("🤝 <b>Counterparty Permission Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
 		if cp, ok := req.ExtraData["counterparty"]; ok {
-			b.WriteString(fmt.Sprintf("*Counterparty:* `%s`\n", esc(fmt.Sprint(cp))))
+			b.WriteString(fmt.Sprintf("<b>Counterparty:</b> <code>%s</code>\n", htmlEsc(fmt.Sprint(cp))))
 		}
 		if protos, ok := req.ExtraData["protocols"]; ok {
-			b.WriteString(fmt.Sprintf("*Protocols:* %v\n", protos))
+			b.WriteString(fmt.Sprintf("<b>Protocols:</b> %v\n", protos))
 		}
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("*Details:* %s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("<b>Details:</b> %s\n", htmlEsc(req.Message)))
 		}
 
 	default:
-		b.WriteString("🔐 *Permission Request*\n\n")
-		b.WriteString(fmt.Sprintf("*App:* `%s`\n", esc(req.App)))
-		b.WriteString(fmt.Sprintf("*Type:* %s\n", esc(req.Type)))
+		b.WriteString("🔐 <b>Permission Request</b>\n\n")
+		b.WriteString(fmt.Sprintf("<b>App:</b> <code>%s</code>\n", htmlEsc(req.App)))
+		b.WriteString(fmt.Sprintf("<b>Type:</b> %s\n", htmlEsc(req.Type)))
 		if req.Message != "" {
-			b.WriteString(fmt.Sprintf("*Details:* %s\n", esc(req.Message)))
+			b.WriteString(fmt.Sprintf("<b>Details:</b> %s\n", htmlEsc(req.Message)))
 		}
 	}
 
-	b.WriteString(fmt.Sprintf("\n_ID: %s_", esc(req.ID)))
+	b.WriteString(fmt.Sprintf("\n<code>%s</code>", htmlEsc(req.ID)))
 	return b.String()
 }
 
-// esc escapes MarkdownV2 special characters for Telegram.
-func esc(s string) string {
-	for _, c := range []string{
-		"_", "*", "[", "]", "(", ")", "~", "`", ">",
-		"#", "+", "-", "=", "|", "{", "}", ".", "!",
-	} {
-		s = strings.ReplaceAll(s, c, "\\"+c)
-	}
+// htmlEsc escapes HTML special characters for Telegram HTML parse mode.
+func htmlEsc(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
 	return s
 }
 
