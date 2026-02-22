@@ -65,16 +65,17 @@ rm -rf /tmp/gebunden
 
 ## Setup
 
-### 1. Create a Dedicated Telegram Bot
+### 1. Create Your Gebunden Bot (30 seconds)
 
-The bridge needs its own Telegram bot (separate from OpenClaw's bot) to avoid update conflicts.
+Each user needs their own Telegram bot for wallet prompts. This keeps your wallet isolated and avoids conflicts with OpenClaw's bot.
 
-1. Open Telegram and message [@BotFather](https://t.me/BotFather)
-2. Send `/newbot`
-3. Choose a name (e.g. "Gebunden Wallet")
-4. Choose a username (e.g. `gebunden_wallet_bot`)
-5. Copy the bot token BotFather gives you
-6. **Start a chat with your new bot** — open it in Telegram and tap "Start"
+1. Message [@BotFather](https://t.me/BotFather) → `/newbot`
+2. Name it anything (e.g. "My Wallet")
+3. Pick a username (e.g. `myname_wallet_bot`)
+4. Copy the token
+5. Open your new bot in Telegram and tap **Start**
+
+That's it.
 
 ### 2. Configure the Bridge
 
