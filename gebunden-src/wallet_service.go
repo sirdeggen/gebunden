@@ -347,10 +347,22 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		}
 		result, err = w.InternalizeAction(ctx, args, origin)
 
+	// ---------------------------------------------------------------
+	// Basket Access — listOutputs
+	// ---------------------------------------------------------------
 	case "listOutputs":
 		var args SDKListOutputsArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		if args.Basket != "" {
+			extra := map[string]interface{}{
+				"basket": args.Basket,
+			}
+			if err := checkPermission(gate, method, origin, "basket", extra, 0,
+				fmt.Sprintf("List outputs from basket: %s", args.Basket)); err != nil {
+				return "", err
+			}
 		}
 		result, err = w.ListOutputs(ctx, args, origin)
 
@@ -359,33 +371,53 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
 		}
+		if args.Basket != "" {
+			extra := map[string]interface{}{
+				"basket": args.Basket,
+			}
+			if err := checkPermission(gate, method, origin, "basket", extra, 0,
+				fmt.Sprintf("Relinquish output from basket: %s", args.Basket)); err != nil {
+				return "", err
+			}
+		}
 		result, err = w.RelinquishOutput(ctx, args, origin)
 
+	// ---------------------------------------------------------------
+	// Protocol Access — getPublicKey, encrypt, decrypt, hmac, signatures
+	// ---------------------------------------------------------------
 	case "getPublicKey":
 		var args SDKGetPublicKeyArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
 		}
+		if args.ProtocolID.Protocol != "" {
+			extra := map[string]interface{}{
+				"protocolID":    args.ProtocolID.Protocol,
+				"securityLevel": args.ProtocolID.SecurityLevel,
+				"keyID":         args.KeyID,
+			}
+			if err := checkPermission(gate, method, origin, "protocol", extra, 0,
+				fmt.Sprintf("Get public key for protocol: %s", args.ProtocolID.Protocol)); err != nil {
+				return "", err
+			}
+		}
 		result, err = w.GetPublicKey(ctx, args, origin)
-
-	case "revealCounterpartyKeyLinkage":
-		var args SDKRevealCounterpartyKeyLinkageArgs
-		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
-			return "", fmt.Errorf("invalid args: %w", e)
-		}
-		result, err = w.RevealCounterpartyKeyLinkage(ctx, args, origin)
-
-	case "revealSpecificKeyLinkage":
-		var args SDKRevealSpecificKeyLinkageArgs
-		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
-			return "", fmt.Errorf("invalid args: %w", e)
-		}
-		result, err = w.RevealSpecificKeyLinkage(ctx, args, origin)
 
 	case "encrypt":
 		var args SDKEncryptArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		if args.ProtocolID.Protocol != "" {
+			extra := map[string]interface{}{
+				"protocolID":    args.ProtocolID.Protocol,
+				"securityLevel": args.ProtocolID.SecurityLevel,
+				"keyID":         args.KeyID,
+			}
+			if err := checkPermission(gate, method, origin, "protocol", extra, 0,
+				fmt.Sprintf("Encrypt data using protocol: %s", args.ProtocolID.Protocol)); err != nil {
+				return "", err
+			}
 		}
 		result, err = w.Encrypt(ctx, args, origin)
 
@@ -394,12 +426,34 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
 		}
+		if args.ProtocolID.Protocol != "" {
+			extra := map[string]interface{}{
+				"protocolID":    args.ProtocolID.Protocol,
+				"securityLevel": args.ProtocolID.SecurityLevel,
+				"keyID":         args.KeyID,
+			}
+			if err := checkPermission(gate, method, origin, "protocol", extra, 0,
+				fmt.Sprintf("Decrypt data using protocol: %s", args.ProtocolID.Protocol)); err != nil {
+				return "", err
+			}
+		}
 		result, err = w.Decrypt(ctx, args, origin)
 
 	case "createHmac":
 		var args SDKCreateHMACArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		if args.ProtocolID.Protocol != "" {
+			extra := map[string]interface{}{
+				"protocolID":    args.ProtocolID.Protocol,
+				"securityLevel": args.ProtocolID.SecurityLevel,
+				"keyID":         args.KeyID,
+			}
+			if err := checkPermission(gate, method, origin, "protocol", extra, 0,
+				fmt.Sprintf("Create HMAC using protocol: %s", args.ProtocolID.Protocol)); err != nil {
+				return "", err
+			}
 		}
 		result, err = w.CreateHMAC(ctx, args, origin)
 
@@ -415,6 +469,17 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
 		}
+		if args.ProtocolID.Protocol != "" {
+			extra := map[string]interface{}{
+				"protocolID":    args.ProtocolID.Protocol,
+				"securityLevel": args.ProtocolID.SecurityLevel,
+				"keyID":         args.KeyID,
+			}
+			if err := checkPermission(gate, method, origin, "protocol", extra, 0,
+				fmt.Sprintf("Create signature using protocol: %s", args.ProtocolID.Protocol)); err != nil {
+				return "", err
+			}
+		}
 		result, err = w.CreateSignature(ctx, args, origin)
 
 	case "verifySignature":
@@ -424,10 +489,63 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		}
 		result, err = w.VerifySignature(ctx, args, origin)
 
+	// ---------------------------------------------------------------
+	// Counterparty — revealCounterpartyKeyLinkage, revealSpecificKeyLinkage
+	// ---------------------------------------------------------------
+	case "revealCounterpartyKeyLinkage":
+		var args SDKRevealCounterpartyKeyLinkageArgs
+		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
+			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		extra := map[string]interface{}{}
+		if args.Counterparty != nil {
+			extra["counterparty"] = args.Counterparty.ToDERHex()
+		}
+		if args.Verifier != nil {
+			extra["verifier"] = args.Verifier.ToDERHex()
+		}
+		if err := checkPermission(gate, method, origin, "counterparty", extra, 0,
+			"Reveal counterparty key linkage"); err != nil {
+			return "", err
+		}
+		result, err = w.RevealCounterpartyKeyLinkage(ctx, args, origin)
+
+	case "revealSpecificKeyLinkage":
+		var args SDKRevealSpecificKeyLinkageArgs
+		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
+			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		extra := map[string]interface{}{
+			"protocolID": args.ProtocolID.Protocol,
+			"keyID":      args.KeyID,
+		}
+		if args.Verifier != nil {
+			extra["verifier"] = args.Verifier.ToDERHex()
+		}
+		if err := checkPermission(gate, method, origin, "counterparty", extra, 0,
+			fmt.Sprintf("Reveal specific key linkage for protocol: %s", args.ProtocolID.Protocol)); err != nil {
+			return "", err
+		}
+		result, err = w.RevealSpecificKeyLinkage(ctx, args, origin)
+
+	// ---------------------------------------------------------------
+	// Certificate Access — acquire, prove, relinquish
+	// ---------------------------------------------------------------
 	case "acquireCertificate":
 		var args SDKAcquireCertificateArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		extra := map[string]interface{}{
+			"certificateType":     args.Type.String(),
+			"acquisitionProtocol": string(args.AcquisitionProtocol),
+		}
+		if args.Certifier != nil {
+			extra["certifier"] = args.Certifier.ToDERHex()
+		}
+		if err := checkPermission(gate, method, origin, "certificate", extra, 0,
+			fmt.Sprintf("Acquire certificate of type: %s", args.Type.String())); err != nil {
+			return "", err
 		}
 		result, err = w.AcquireCertificate(ctx, args, origin)
 
@@ -442,6 +560,17 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		var args SDKProveCertificateArgs
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
+		}
+		extra := map[string]interface{}{
+			"certificateType": args.Certificate.Type.String(),
+			"fieldsToReveal":  args.FieldsToReveal,
+		}
+		if args.Verifier != nil {
+			extra["verifierPublicKey"] = args.Verifier.ToDERHex()
+		}
+		if err := checkPermission(gate, method, origin, "certificate", extra, 0,
+			fmt.Sprintf("Prove certificate (type: %s) to verifier", args.Certificate.Type.String())); err != nil {
+			return "", err
 		}
 		result, err = w.ProveCertificate(ctx, args, origin)
 
