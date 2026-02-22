@@ -1,0 +1,3 @@
+bin/
+*.tmp
+push_with_app_token.sh
