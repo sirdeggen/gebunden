@@ -12,7 +12,7 @@ Instead of a desktop GUI window, Gebunden uses a separate **Bridge Service** to 
 
 This repository is a monorepo containing two components:
 
-- **`gebunden-src/`**: The headless wallet daemon.
+- **`core/`**: The headless wallet daemon.
   - Exposes the BRC-100 HTTP interface on `http://127.0.0.1:3321`.
   - Manages private keys and UTXOs locally (SQLite).
   - Delegates permission requests to the Bridge.
@@ -57,7 +57,7 @@ cd bridge
 go build -o ../bin/bridge
 
 # Build the wallet daemon
-cd ../gebunden-src
+cd ../core
 go build -tags headless -o ../bin/gebunden
 ```
 
