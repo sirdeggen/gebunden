@@ -1,0 +1,8 @@
+build/bin
+build/icons.iconset
+node_modules
+frontend/dist
+.idea/
+bsv-desktop-wails
+*.exe
+!vendor/github.com/wailsapp/wails/v2/internal/webview2runtime/MicrosoftEdgeWebview2Setup.exe
