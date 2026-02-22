@@ -1,0 +1,1 @@
+cd /Users/molt/.openclaw/workspace/gebunden/bridge && git init -b main >/dev/null 2>&1 || true; cp /Users/molt/.openclaw/workspace/gebunden/bridge/main.go /Users/molt/.openclaw/workspace/gebunden/bridge/main.go.bak; echo READY
