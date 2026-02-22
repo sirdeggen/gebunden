@@ -4,6 +4,6 @@ plugins:
 
 title: Gebunden
 description: Headless BRC-100 wallet for OpenClaw agents
-theme_color: blue
+theme_color: red
 
 show_downloads: true
