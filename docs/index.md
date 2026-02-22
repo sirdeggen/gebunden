@@ -14,8 +14,8 @@ Gebunden runs as a background service on your machine, exposing the standard BSV
 ```
 ┌─────────────┐     HTTP      ┌──────────┐    Telegram    ┌──────┐
 │  Your App   │ ──────────▸   │ Gebunden │  ◂──────────▸  │ You  │
-│ (or Skill)  │  localhost    │  + Bridge │   Bot API      │      │
-└─────────────┘   :3321       └──────────┘                 └──────┘
+│ (or Skill)  │  localhost    │ + Bridge │   Bot API      │      │
+└─────────────┘   :3321       └──────────┘                └──────┘
 ```
 
 1. An app (or OpenClaw skill) calls the wallet via `http://localhost:3321`.
