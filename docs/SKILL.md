@@ -1,3 +1,8 @@
+---
+layout: default
+title: Installation Guide
+---
+
 # Gebunden — OpenClaw Skill Instructions
 
 ## What This Is

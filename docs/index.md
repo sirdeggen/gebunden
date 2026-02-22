@@ -1,3 +1,8 @@
+---
+layout: default
+title: Home
+---
+
 # Gebunden
 
 A headless BRC-100 wallet for [OpenClaw](https://openclaw.ai) agents.
