@@ -1,0 +1,20 @@
+{
+  "name": "@gebunden/pay",
+  "version": "1.0.0",
+  "description": "BRC-29 payment CLI for the Gebunden headless wallet",
+  "type": "module",
+  "main": "index.mjs",
+  "bin": {
+    "pay": "./index.mjs"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@bsv/message-box-client": "^2.0.2",
+    "@bsv/sdk": "^2.0.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

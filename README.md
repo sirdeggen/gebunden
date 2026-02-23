@@ -10,7 +10,7 @@ Instead of a desktop GUI window, Gebunden uses a separate **Bridge Service** to 
 
 ## Architecture
 
-This repository is a monorepo containing two components:
+This repository is a monorepo containing three components:
 
 - **`core/`**: The headless wallet daemon.
   - Exposes the BRC-100 HTTP interface on `http://127.0.0.1:3321`.
@@ -21,6 +21,12 @@ This repository is a monorepo containing two components:
   - Exposes an internal API on `http://127.0.0.1:18790`.
   - Connects to the user's chat provider (Telegram).
   - Converts wallet permission requests into interactive chat prompts.
+
+- **`pay/`**: A Node.js BRC-29 payment CLI.
+  - Connects to the running wallet via `WalletClient('auto', 'pay')`.
+  - Send payments: `/pay <identity-key-or-name> <satoshis>`
+  - Receive payments: `/receive` (lists and internalizes inbound BRC-29 messages)
+  - Identity resolution via `IdentityClient` for non-hex recipients.
 
 ## Configuration
 
