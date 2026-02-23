@@ -262,7 +262,7 @@ This opens an interactive CLI that connects to the locally running Gebunden wall
 |---------|-------------|
 | `/pay <recipient> <satoshis>` | Send a payment. Recipient can be a 66-char hex identity key or a name/email resolved via `IdentityClient`. |
 | `/receive` | List and accept all pending inbound payments. |
-| `/balance` | Show current wallet balance. |
+| `/identity` | Print your own identity public key (hex). |
 | `/history` | Show past payment transactions. |
 | `/help` | Show available commands. |
 | `/quit` | Exit the CLI. |

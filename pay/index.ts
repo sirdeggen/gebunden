@@ -126,6 +126,15 @@ async function cmdReceive(): Promise<void> {
   console.log(`${accepted} payment${accepted === 1 ? '' : 's'} received.`)
 }
 
+async function cmdIdentity(): Promise<void> {
+  try {
+    const result = await wallet.getPublicKey({ identityKey: true })
+    console.log(`Identity key: ${result.publicKey}`)
+  } catch (err) {
+    console.log(`Error fetching identity key: ${(err as Error).message}`)
+  }
+}
+
 async function cmdHistory(): Promise<void> {
   try {
     const response = await wallet.listActions({
@@ -157,6 +166,7 @@ function cmdHelp(): void {
   console.log('Available commands:')
   console.log('  /pay <recipient> <satoshis>  Send a BRC-29 payment')
   console.log('  /receive                     List and accept inbound payments')
+  console.log('  /identity                    Show your identity public key')
   console.log('  /history                     Show recent payment history')
   console.log('  /help                        Show this help')
   console.log('  /quit                        Exit')
@@ -202,6 +212,9 @@ async function main(): Promise<void> {
         break
       case '/receive':
         await cmdReceive()
+        break
+      case '/identity':
+        await cmdIdentity()
         break
       case '/history':
         await cmdHistory()
