@@ -1,4 +1,4 @@
-module github.com/icellan/bsv-desktop-wails
+module github.com/sirdeggen/gebunden-core
 
 go 1.25.4
 
