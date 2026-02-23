@@ -9,6 +9,9 @@ title: SKILL.md
 
 Gebunden is a headless BSV wallet that runs on the user's machine and exposes the BRC-100 `WalletInterface` over `http://localhost:3321`. Permission prompts (spending, protocol access, certificates, etc.) are surfaced through a dedicated Telegram bot as interactive messages with inline Approve/Deny buttons.
 
+![output](https://github.com/user-attachments/assets/fa73f4cf-746b-4ae6-b08e-03738e98c14b)
+
+
 This document tells you, the OpenClaw agent, how to install and run Gebunden for your user.
 
 ## Prerequisites
