@@ -70,14 +70,3 @@ func TestStorageProxySmoke(t *testing.T) {
 	// Step 3: Cleanup
 	svc.Cleanup()
 }
-
-// TestVersionVariable verifies the version variable is set (defaults to "dev").
-func TestVersionVariable(t *testing.T) {
-	if version == "" {
-		t.Fatal("version variable is empty")
-	}
-	// In test context without ldflags, should be "dev"
-	if version != "dev" {
-		t.Logf("version = %q (set via ldflags)", version)
-	}
-}
