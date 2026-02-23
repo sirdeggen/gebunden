@@ -50,15 +50,14 @@ Requires Go 1.22+.
 
 ```bash
 git clone https://github.com/sirdeggen/gebunden.git /tmp/gebunden
+cd /tmp/gebunden
+
+# Build all components (outputs to bin/)
+make build
+
+# Copy binaries to ~/.gebunden/bin
 mkdir -p ~/.gebunden/bin
-
-# Build wallet daemon
-cd /tmp/gebunden/core
-go build -o ~/.gebunden/bin/gebunden .
-
-# Build bridge
-cd /tmp/gebunden/bridge
-go build -o ~/.gebunden/bin/gebunden-bridge .
+cp bin/gebunden bin/bridge ~/.gebunden/bin/
 
 rm -rf /tmp/gebunden
 ```
@@ -128,10 +127,10 @@ Start the bridge first, then the wallet daemon.
 
 ```bash
 # Start the bridge (reads config from ~/.gebunden/bridge-config.json)
-~/.gebunden/bin/gebunden-bridge &
+~/.gebunden/bin/bridge &
 
-# Start the wallet in headless mode
-~/.gebunden/bin/gebunden --headless &
+# Start the wallet daemon
+~/.gebunden/bin/gebunden &
 ```
 
 ### Verify It's Running
@@ -236,10 +235,11 @@ The `pay/` directory contains a Node.js CLI for sending and receiving BRC-29 pee
 ### Installation
 
 ```bash
-cd pay
-npm install
-npm run build
-npm link        # makes `pay` available globally on your PATH
+# From the monorepo root:
+make pay        # installs deps and builds
+
+# Then link globally:
+cd pay && npm link
 ```
 
 ### Configuration
@@ -316,7 +316,6 @@ The pay CLI itself does not listen on any port. It connects to:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--headless` | `false` | Run without GUI |
 | `--auto-approve` | `false` | Skip permission prompts (development only) |
 | `--key-file` | (auto-detect) | Path to wallet identity JSON |
 | `--bridge-url` | `http://127.0.0.1:18790` | Bridge service URL |
