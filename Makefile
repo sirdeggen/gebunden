@@ -19,8 +19,7 @@ BIN_DIR := bin
 VERSION      ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
 CLEAN_VERSION = $(shell echo $(VERSION) | sed 's/^v//')
 
-CORE_TAGS  := headless
-CORE_FLAGS := -mod=vendor -tags $(CORE_TAGS) -ldflags '-X main.version=$(CLEAN_VERSION)'
+CORE_FLAGS := -mod=vendor -ldflags '-X main.version=$(CLEAN_VERSION)'
 
 # --- Targets ---
 
@@ -40,11 +39,11 @@ core: ## Build the headless wallet daemon → bin/gebunden
 	cd core && go build $(CORE_FLAGS) -o ../$(BIN_DIR)/gebunden .
 	@echo "    → $(BIN_DIR)/gebunden"
 
-bridge: ## Build the permission bridge → bin/bridge
+bridge: ## Build the permission bridge → bin/gebunden-bridge
 	@echo "=== bridge: building ==="
 	@mkdir -p $(BIN_DIR)
-	cd bridge && go build -o ../$(BIN_DIR)/bridge .
-	@echo "    → $(BIN_DIR)/bridge"
+	cd bridge && go build -o ../$(BIN_DIR)/gebunden-bridge .
+	@echo "    → $(BIN_DIR)/gebunden-bridge"
 
 pay: ## Install deps and build the pay CLI
 	@echo "=== pay: installing dependencies ==="
@@ -55,7 +54,7 @@ pay: ## Install deps and build the pay CLI
 
 run: build ## Build then start bridge + core in the background
 	@echo "=== Starting bridge ==="
-	@$(BIN_DIR)/bridge &
+	@$(BIN_DIR)/gebunden-bridge &
 	@echo "=== Starting gebunden ==="
 	@$(BIN_DIR)/gebunden &
 	@echo "Both processes started. Use 'make stop' to shut them down."
@@ -64,12 +63,12 @@ stop: ## Stop background bridge + core processes
 	@echo "=== Stopping gebunden ==="
 	@pkill -f $(BIN_DIR)/gebunden 2>/dev/null || true
 	@echo "=== Stopping bridge ==="
-	@pkill -f $(BIN_DIR)/bridge 2>/dev/null || true
+	@pkill -f $(BIN_DIR)/gebunden-bridge 2>/dev/null || true
 	@echo "Done."
 
 test: ## Run tests for all components
 	@echo "=== core: running tests ==="
-	cd core && go test $(CORE_FLAGS) -v -count=1 ./...
+	cd core && go test -mod=vendor -v -count=1 ./...
 	@echo ""
 	@echo "=== bridge: running tests ==="
 	cd bridge && go test -v -count=1 ./...
@@ -80,6 +79,6 @@ test: ## Run tests for all components
 
 clean: ## Remove build artifacts
 	@echo "=== Cleaning ==="
-	@rm -f $(BIN_DIR)/gebunden $(BIN_DIR)/bridge
+	@rm -f $(BIN_DIR)/gebunden $(BIN_DIR)/gebunden-bridge
 	@rm -rf pay/dist
 	@echo "Clean complete."
