@@ -24,8 +24,9 @@ This repository is a monorepo containing three components:
 
 - **`pay/`**: A Node.js BRC-29 payment CLI.
   - Connects to the running wallet via `WalletClient('auto', 'pay')`.
-  - Send payments: `/pay <identity-key-or-name> <satoshis>`
-  - Receive payments: `/receive` (lists and internalizes inbound BRC-29 messages)
+  - `pay send <recipient> <satoshis>` — send to a hex identity key or name/email
+  - `pay receive` — list and internalize inbound BRC-29 payments
+  - `pay identity` — print your identity public key
   - Identity resolution via `IdentityClient` for non-hex recipients.
 
 ## Configuration
@@ -58,38 +59,67 @@ The bridge needs a Telegram Bot Token and your Chat ID. It discovers them automa
 ### 1. Build
 
 ```bash
-# Build the bridge
-cd bridge
-go build -o ../bin/bridge
+# Build the headless wallet daemon
+cd core
+go build -tags headless -o ../bin/gebunden .
 
-# Build the wallet daemon
-cd ../core
-go build -tags headless -o ../bin/gebunden
+# Build the permission bridge
+cd ../bridge
+go build -o ../bin/bridge .
 ```
+
+The `headless` build tag strips all GUI dependencies. The resulting binary has no window, no tray icon, and no display requirement — it runs as a pure background service.
 
 ### 2. Run
 
-Start the bridge first, then the wallet.
+Start the bridge first so the wallet has somewhere to send permission prompts, then start the wallet daemon.
 
 ```bash
-# Terminal 1: Start Bridge
-./bin/bridge
+# Start the permission bridge (reads from ~/.gebunden/bridge-config.json)
+./bin/bridge &
 
-# Terminal 2: Start Wallet (Headless)
-./bin/gebunden --headless
+# Start the headless wallet daemon
+./bin/gebunden --headless &
 ```
 
-### 3. Usage
+Both processes bind exclusively to `127.0.0.1` and are not reachable from the network.
 
-Applications on your machine can now use the wallet via the standard HTTP interface:
+### 3. Verify
+
+```bash
+# Wallet liveness check
+curl -s -X POST http://127.0.0.1:3321/isAuthenticated \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://local" \
+  -d '{}'
+# Expected: {"authenticated":true}
+
+# Bridge liveness check
+curl -s http://127.0.0.1:18790/health
+# Expected: {"ok":true}
+```
+
+### 4. Use
+
+Any application on the machine can call the wallet over HTTP using the BRC-100 interface:
 
 ```bash
 curl -X POST http://127.0.0.1:3321/getPublicKey \
   -H "Content-Type: application/json" \
-  -d '{"protocolID":{"protocol":"identity","securityLevel":1}}'
+  -H "Origin: http://my-app" \
+  -d '{"protocolID":[1,"my protocol"],"keyID":"1"}'
 ```
 
-If the action requires permission, you will receive a message on Telegram. Click "Approve" to let the request proceed. The default timeout for prompts is **180 seconds**.
+If the action requires permission, a prompt arrives via Telegram. Tap **Approve** or **Deny**. The HTTP request blocks until you respond (default timeout: **180 seconds**).
+
+Or use the `pay` CLI directly:
+
+```bash
+cd pay && npm install && npm run build && npm link
+pay identity          # print your identity public key
+pay send <key> 1000   # send 1000 sats
+pay receive           # accept inbound payments
+```
 
 ## Permission Types
 

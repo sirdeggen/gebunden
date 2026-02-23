@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,18 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
-
-//go:embed all:frontend/dist
-var assets embed.FS
-
-//go:embed build/appicon.png
-var appIcon []byte
 
 // walletIdentity is the JSON structure for the wallet identity file.
 type walletIdentity struct {
@@ -32,55 +20,12 @@ type walletIdentity struct {
 }
 
 func main() {
-	headless := flag.Bool("headless", false, "Run in headless mode (no GUI, HTTP-only)")
-	autoApprove := flag.Bool("auto-approve", false, "Auto-approve all permission requests (headless only)")
+	autoApprove := flag.Bool("auto-approve", false, "Auto-approve all permission requests")
 	keyFile := flag.String("key-file", "", "Path to wallet identity JSON file")
 	bridgeURL := flag.String("bridge-url", "http://127.0.0.1:18790", "URL of the Gebunden Bridge service")
 	flag.Parse()
 
-	if *headless {
-		runHeadless(*autoApprove, *keyFile, *bridgeURL)
-	} else {
-		runGUI()
-	}
-}
-
-// runGUI starts the original Wails-based desktop app.
-func runGUI() {
-	walletService := NewWalletService()
-	app := NewApp(walletService)
-	nativeService := NewNativeService()
-	storageProxyService := NewStorageProxyService()
-
-	err := wails.Run(&options.App{
-		Title:  "Gebunden",
-		Width:  1200,
-		Height: 800,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-		},
-		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
-		OnDomReady:       app.domReady,
-		Mac: &mac.Options{
-			About: &mac.AboutInfo{
-				Title:   "Gebunden",
-				Message: "Gebunden Wallet\nVersion " + version,
-				Icon:    appIcon,
-			},
-		},
-		Bind: []interface{}{
-			app,
-			walletService,
-			nativeService,
-			storageProxyService,
-		},
-	})
-
-	if err != nil {
-		log.Fatal("Error:", err.Error())
-	}
+	runHeadless(*autoApprove, *keyFile, *bridgeURL)
 }
 
 // runHeadless starts the wallet service and HTTP server without the Wails GUI.

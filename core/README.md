@@ -1,285 +1,175 @@
-# BSV Desktop
+# Gebunden Core
 
-A native desktop wallet for the BSV blockchain, built with [Wails](https://wails.io/) (Go backend + React frontend). Implements the [BRC-100](https://brc.dev/100) wallet HTTP interface, enabling third-party applications to interact with the wallet over a local HTTPS/HTTP server.
+The headless BRC-100 wallet daemon. Runs as a background service with no GUI, no window, and no display requirement. Exposes the full [BRC-100](https://brc.dev/100) `WalletInterface` over localhost HTTP so any application on the machine can use it.
+
+Permission prompts (spending, protocol access, certificates, etc.) are delegated to the [Bridge service](../bridge/) rather than a GUI dialog. The HTTP request blocks until the user approves or denies via their configured chat channel (Telegram).
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                   BSV Desktop App                    │
-│                                                      │
-│  ┌─────────────────────┐  ┌───────────────────────┐  │
-│  │   React Frontend    │  │    Go Backend          │  │
-│  │                     │  │                        │  │
-│  │  StorageWailsProxy ─┼──┤→ StorageProxyService   │  │
-│  │  wailsFunctions    ─┼──┤→ NativeService         │  │
-│  │  fetchProxy        ─┼──┤→ WalletService         │  │
-│  │                     │  │                        │  │
-│  └─────────────────────┘  │  HTTPServer (BRC-100)  │  │
-│                           │   ├ HTTPS :2121        │  │
-│                           │   └ HTTP  :3321        │  │
-│                           │                        │  │
-│                           │  GORM + SQLite Storage │  │
-│                           └───────────────────────-┘  │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│              Gebunden Core (headless)        │
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │           WalletService              │   │
+│  │  (BRC-100 method dispatcher)         │   │
+│  └──────────────┬───────────────────────┘   │
+│                 │                           │
+│  ┌──────────────▼───────────────────────┐   │
+│  │           HTTPServer                 │   │
+│  │   HTTP  127.0.0.1:3321               │   │
+│  │   HTTPS 127.0.0.1:2121 (self-signed) │   │
+│  └──────────────────────────────────────┘   │
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │        BridgePermissionGate          │   │
+│  │  POST 127.0.0.1:18790/request-perm.  │   │
+│  │  Blocks until user approves/denies   │   │
+│  └──────────────────────────────────────┘   │
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │        GORM + SQLite Storage         │   │
+│  │  ~/.gebunden/wallet-<key>-main.sqlite│   │
+│  └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
 ```
 
-**Go Backend** — Full wallet implementation using [go-wallet-toolbox](https://github.com/bsv-blockchain/go-wallet-toolbox). Handles key management, transaction creation, certificate operations, blockchain monitoring, and storage via GORM/SQLite. Exposes a BRC-100 compliant HTTP/HTTPS server for external app integration.
+**WalletService** — Implements the full BRC-100 wallet interface: actions, outputs, certificates, cryptography, key derivation, and identity discovery.
 
-**React Frontend** — TypeScript UI ported from the Electron version. Communicates with the Go backend through Wails bindings (no IPC bridge needed). Uses Material UI, React Router, and the [@bsv/wallet-toolbox](https://www.npmjs.com/package/@bsv/wallet-toolbox) client library.
+**HTTPServer** — Serves all BRC-100 methods as `POST /<methodName>` endpoints. Requires an `Origin` or `Originator` header on every request (used as the app identifier in permission prompts). Full CORS support.
 
-**Wails Bindings** — Auto-generated TypeScript wrappers that let the frontend call Go methods directly. Replaces the Electron IPC transport layer with zero-overhead native calls.
+**BridgePermissionGate** — For any sensitive operation, serialises a `PermissionRequest` and POSTs it to the Bridge service at `http://127.0.0.1:18790/request-permission`. The call blocks (up to 130 seconds) until the bridge returns an approve/deny response. If the bridge is unreachable, the request is denied by default.
 
 ## Prerequisites
 
-- **Go** 1.25+ ([go.dev](https://go.dev/dl/))
-- **Node.js** LTS (18+) with npm
-- **Wails CLI** v2.11+ — `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-- **Linux**: `libgtk-3-dev`, `libwebkit2gtk-4.0-dev`
-- **Windows**: WebView2 runtime (included in Windows 11, available for Windows 10)
+- **Go** 1.22+ ([go.dev](https://go.dev/dl/))
+- CGO enabled (required for SQLite via `modernc.org/sqlite`)
 
-## Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/icellan/bsv-desktop-wails.git
-cd bsv-desktop-wails
-
-# Install frontend dependencies
-cd frontend && npm install && cd ..
-
-# Development mode (builds and runs the app)
-make dev
-# or: ./dev.sh
-# or with hot reload: ./dev.sh --hot
-```
+No Node.js, no Wails CLI, no display server required.
 
 ## Build
 
-All builds are managed through the Makefile. Run `make help` to see all targets.
+```bash
+cd core
+go build -tags headless -o ../bin/gebunden .
+```
+
+The `headless` build tag excludes all Wails/GUI code paths. The binary has no dependency on a display server and can run in a terminal, as a systemd service, or in a Docker container.
+
+## Configuration
+
+### Wallet Identity
+
+The daemon needs a root private key to derive all wallet keys. It searches in this order:
+
+1. `--key-file <path>` flag
+2. `GEBUNDEN_PRIVATE_KEY` environment variable (hex-encoded root key)
+3. `~/.gebunden/wallet-identity.json`
+4. `~/.clawdbot/bsv-wallet/wallet-identity.json` (legacy fallback)
+
+The identity file format:
+
+```json
+{
+  "rootKeyHex": "<64-char hex private key>",
+  "network": "mainnet"
+}
+```
+
+> **Security:** This file contains your root private key. Set permissions to `600` and never commit it.
+
+### Bridge URL
+
+The daemon forwards all permission requests to the Bridge service. Default: `http://127.0.0.1:18790`.
+
+Override with `--bridge-url <url>`.
+
+## Running
 
 ```bash
-# Production build for current platform
-make build
+# Standard mode — prompts forwarded to Bridge
+./bin/gebunden
 
-# macOS .app bundle
-make build-mac
+# Auto-approve mode — no prompts, all requests granted (development only)
+./bin/gebunden --auto-approve
 
-# macOS .dmg installer
-make build-mac && make package-mac
-
-# Linux binary
-make build-linux
-
-# Windows .exe (on Windows or with cross-compiler)
-make build-win
-
-# Run tests (Go + TypeScript type check)
-make test
-
-# Clean all build artifacts
-make clean
+# Custom key file and bridge URL
+./bin/gebunden --key-file /path/to/wallet-identity.json --bridge-url http://127.0.0.1:18790
 ```
 
-### Versioning
+The daemon logs to stdout in structured text format and blocks until it receives `SIGINT` or `SIGTERM`.
 
-The version is injected at build time via Go linker flags. The Makefile sources the version from git tags automatically:
+## Flags
 
-```bash
-# Build with a specific version
-make build VERSION=v1.0.0
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--auto-approve` | `false` | Approve all permission requests automatically |
+| `--key-file` | `""` | Path to `wallet-identity.json` |
+| `--bridge-url` | `http://127.0.0.1:18790` | URL of the Bridge permission service |
 
-# Version from git tags (default behavior)
-git tag v1.0.0
-make build  # binary reports version "1.0.0"
-```
+## HTTP Interface
 
-Without a git tag, the version defaults to `dev`.
+All BRC-100 methods are served as `POST /<methodName>` on:
 
-### Manual Build (without Make)
-
-If you prefer not to use Make:
-
-```bash
-# Build frontend
-cd frontend && npm install && npm run build && cd ..
-
-# Generate Wails bindings
-wails generate module
-
-# Build Go binary (macOS)
-CGO_ENABLED=1 CGO_LDFLAGS="-framework UniformTypeIdentifiers" \
-  go build -tags desktop,production -ldflags "-X main.version=1.0.0" -o build/bin/BSV-Desktop .
-```
-
-## Project Structure
-
-```
-.
-├── main.go                    # Wails app entry point, embeds frontend/dist
-├── app.go                     # App lifecycle (startup, shutdown, version)
-├── wallet_service.go          # BRC-100 wallet method dispatcher
-├── wallet_args.go             # SDK type aliases for JSON deserialization
-├── storage_proxy_service.go   # Storage proxy (frontend ↔ GORM/SQLite)
-├── http_server.go             # BRC-100 HTTP/HTTPS server
-├── ssl_cert.go                # Self-signed TLS certificate management
-├── native_service.go          # Platform features (file dialogs, focus, etc.)
-├── integration_test.go        # Storage proxy smoke test
-├── Makefile                   # Build targets
-├── build.sh                   # Build script (delegates to Make)
-├── dev.sh                     # Development mode script
-├── wails.json                 # Wails project configuration
-├── build/
-│   ├── appicon.png            # Application icon
-│   └── darwin/
-│       ├── Info.plist         # macOS plist (Wails template)
-│       ├── Info.dev.plist     # macOS dev plist (Wails template)
-│       └── Info.plist.tmpl    # macOS plist template (used by Makefile)
-├── frontend/
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── main.tsx           # React entry point
-│       ├── fetchProxy.ts      # Fetch proxy for manifest requests
-│       ├── wailsFunctions.ts  # Wails binding wrappers
-│       └── lib/               # UI components, pages, context providers
-└── .github/workflows/
-    ├── ci.yml                 # PR validation (build + lint + typecheck)
-    └── release.yml            # Multi-platform release pipeline
-```
-
-## Go Backend Services
-
-### WalletService
-
-Dispatches BRC-100 wallet method calls. Supports the full wallet interface:
-
-- **Actions**: `createAction`, `signAction`, `abortAction`, `listActions`, `internalizeAction`
-- **Outputs**: `listOutputs`, `relinquishOutput`
-- **Certificates**: `acquireCertificate`, `listCertificates`, `proveCertificate`, `relinquishCertificate`
-- **Cryptography**: `encrypt`, `decrypt`, `createHmac`, `verifyHmac`, `createSignature`, `verifySignature`
-- **Keys**: `getPublicKey`, `revealCounterpartyKeyLinkage`, `revealSpecificKeyLinkage`
-- **Discovery**: `discoverByIdentityKey`, `discoverByAttributes`
-- **Network**: `getHeight`, `getHeaderForHeight`, `getNetwork`, `getVersion`
-- **Auth**: `isAuthenticated`, `waitForAuthentication`
-
-### StorageProxyService
-
-Bridges the frontend's TypeScript `WalletStorageManager` to the Go GORM storage layer:
-
-- `MakeAvailable(identityKey, chain)` — Creates SQLite database, runs migrations
-- `CallMethod(identityKey, chain, method, argsJSON)` — Dispatches storage operations
-- Supports action CRUD, certificate operations, output queries, and sync operations
-
-### HTTPServer
-
-BRC-100 compliant HTTP interface for external application integration:
-
-- **HTTPS**: `https://127.0.0.1:2121` (self-signed certificate, auto-generated)
 - **HTTP**: `http://127.0.0.1:3321`
-- Serves a `manifest.json` at the root for app discovery
-- Full CORS support for browser-based applications
+- **HTTPS**: `https://127.0.0.1:2121` (self-signed certificate, auto-generated and installed to system trust store)
 
-### NativeService
+Every request must include an `Origin` or `Originator` header — this identifies the calling application in permission prompts.
 
-Platform-specific features exposed to the frontend:
+### Supported Methods
 
-- File download/save dialogs
-- Mnemonic backup to `~/.bsv-desktop/`
-- Window focus management
-- Manifest proxy (CORS bypass for external manifest.json fetches)
+| Category | Methods |
+|----------|---------|
+| **Actions** | `createAction`, `signAction`, `abortAction`, `listActions`, `internalizeAction` |
+| **Outputs** | `listOutputs`, `relinquishOutput` |
+| **Certificates** | `acquireCertificate`, `listCertificates`, `proveCertificate`, `relinquishCertificate` |
+| **Cryptography** | `encrypt`, `decrypt`, `createHmac`, `verifyHmac`, `createSignature`, `verifySignature` |
+| **Keys** | `getPublicKey`, `revealCounterpartyKeyLinkage`, `revealSpecificKeyLinkage` |
+| **Discovery** | `discoverByIdentityKey`, `discoverByAttributes` |
+| **Network** | `getHeight`, `getHeaderForHeight`, `getNetwork`, `getVersion` |
+| **Auth** | `isAuthenticated`, `waitForAuthentication` |
+
+### Permission Flow
+
+Sensitive methods (`createAction`, `getPublicKey`, `encrypt`, `acquireCertificate`, etc.) trigger a permission check:
+
+1. Core serialises a `PermissionRequest` (type, app, message, amount) and POSTs it to `http://127.0.0.1:18790/request-permission`
+2. The Bridge delivers the prompt to the user (Telegram inline keyboard)
+3. The Bridge blocks until the user taps **Approve** or **Deny** (up to 120 seconds)
+4. Core receives the response and either completes or rejects the wallet operation
+5. If the Bridge is unreachable, the request is **denied by default**
+
+Read-only methods (`listActions`, `discoverByAttributes`, `isAuthenticated`, etc.) bypass the permission gate entirely.
 
 ## Data Storage
 
-All persistent data is stored in `~/.bsv-desktop/`:
+```
+~/.gebunden/
+├── wallet-<identityKey>-main.sqlite   # Wallet database (mainnet)
+├── wallet-<identityKey>-test.sqlite   # Wallet database (testnet)
+└── certs/
+    ├── server.crt                     # Self-signed TLS certificate
+    └── server.key                     # TLS private key
+```
 
-```
-~/.bsv-desktop/
-├── wallet-<identityKey>-<chain>.sqlite    # Wallet database(s)
-├── certs/
-│   ├── server.crt                         # Self-signed TLS certificate
-│   └── server.key                         # TLS private key
-└── mnemonic<timestamp>.txt                # Mnemonic backups (read-only)
-```
+## Source Files
+
+| File | Purpose |
+|------|---------|
+| `main.go` | Entry point, flag parsing, wallet init, signal handling |
+| `wallet_service.go` | BRC-100 method dispatcher |
+| `wallet_args.go` | JSON type aliases for SDK deserialization |
+| `http_server.go` | BRC-100 HTTP/HTTPS server with CORS middleware |
+| `permissions.go` | `PermissionGate` interface and `BridgePermissionGate` implementation |
+| `ssl_cert.go` | Self-signed TLS certificate generation and system trust store installation |
+| `storage_proxy_service.go` | GORM/SQLite storage layer |
 
 ## Testing
 
 ```bash
-# Run all Go tests
-make test
-
-# Run only the integration smoke test
-go test -tags desktop,production -run TestStorageProxySmoke -v .
-
-# Run only the version test
-go test -tags desktop,production -run TestVersionVariable -v .
-
-# Frontend type check
-cd frontend && npx tsc --noEmit
+go test -tags headless ./...
 ```
-
-The integration test validates the full storage pipeline: `StorageProxyService` -> `MakeAvailable` (GORM migration + SQLite creation) -> `CallMethod("findOrInsertUser")` -> cleanup.
-
-## CI/CD
-
-### Pull Request Validation (`.github/workflows/ci.yml`)
-
-Runs on every PR against `main`:
-1. `go build ./...` — verifies Go compilation
-2. `go vet ./...` — static analysis
-3. `go test ./...` — runs all Go tests
-4. `npm ci && npm run build` — verifies frontend builds
-5. `npx tsc --noEmit` — TypeScript type check
-
-### Release Pipeline (`.github/workflows/release.yml`)
-
-Triggered by pushing a `v*.*.*` tag. Builds for all three platforms in parallel:
-
-**macOS** (`macos-latest`):
-- Builds `.app` bundle with proper Info.plist and .icns icon
-- Code signs with Apple Developer ID certificate
-- Notarizes with Apple notary service
-- Packages as `.dmg`
-
-**Linux** (`ubuntu-22.04`):
-- Builds native binary
-- GPG signs the binary
-- Generates `SHA256SUMS` (also GPG signed)
-
-**Windows** (`windows-2022`):
-- Builds `.exe` with `-H windowsgui`
-- Code signs with DigiCert Software Trust Manager
-
-All artifacts are uploaded to a draft GitHub Release.
-
-### Required Secrets
-
-| Secret | Platform | Purpose |
-|--------|----------|---------|
-| `APPLE_DEVELOPER_ID_CERT` | macOS | Base64-encoded .p12 certificate |
-| `APPLE_DEVELOPER_ID_CERT_PASS` | macOS | Certificate password |
-| `APPLE_KEYCHAIN_PASSWORD` | macOS | Temporary keychain password |
-| `APPLE_ID` | macOS | Apple ID for notarization |
-| `APPLE_ID_PASS` | macOS | App-specific password for notarization |
-| `APPLE_TEAM_ID` | macOS | Apple Developer Team ID |
-| `APP_IMAGE_GPG_KEY` | Linux | GPG private key for signing |
-| `DIGICERT_CLIENT_AUTH_CERT` | Windows | DigiCert client auth certificate |
-| `DIGICERT_CLIENT_AUTH_PASS` | Windows | DigiCert certificate password |
-| `DIGICERT_HOST` | Windows | DigiCert SSM host |
-| `DIGICERT_KEY_LOCKER_API_KEY` | Windows | DigiCert API key |
-| `DIGICERT_CODE_SIGNING_SHA1_HASH` | Windows | Certificate fingerprint |
-
-### Creating a Release
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-This triggers the release workflow. Once all platform builds complete, a draft release is created on GitHub with all signed artifacts.
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+See [LICENSE](../LICENSE) for details.
