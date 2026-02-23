@@ -45,9 +45,16 @@ Permission prompts (spending, protocol access, certificates, etc.) are delegated
 - **Go** 1.22+ ([go.dev](https://go.dev/dl/))
 - CGO enabled (required for SQLite via `modernc.org/sqlite`)
 
-No Node.js, no Wails CLI, no display server required.
-
 ## Build
+
+From the monorepo root:
+
+```bash
+make core        # build just this component → bin/gebunden
+make build       # build all three components (core + bridge + pay)
+```
+
+Or directly with Go:
 
 ```bash
 cd core
