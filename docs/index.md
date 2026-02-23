@@ -238,60 +238,49 @@ The `pay/` directory contains a Node.js CLI for sending and receiving BRC-29 pee
 ```bash
 cd pay
 npm install
+npm run build
+npm link        # makes `pay` available globally on your PATH
 ```
 
 ### Configuration
 
-Set the Message Box URL as an environment variable:
+Set the Message Box URL as an environment variable (defaults to `https://messagebox.babbage.systems`):
 
 ```bash
 export MESSAGE_BOX_URL="https://messagebox.babbage.systems"
 ```
 
-### Running
-
-```bash
-node index.mjs
-```
-
-This opens an interactive CLI that connects to the locally running Gebunden wallet using `WalletClient('auto', 'pay')`.
-
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/pay <recipient> <satoshis>` | Send a payment. Recipient can be a 66-char hex identity key or a name/email resolved via `IdentityClient`. |
-| `/receive` | List and accept all pending inbound payments. |
-| `/identity` | Print your own identity public key (hex). |
-| `/history` | Show past payment transactions. |
-| `/help` | Show available commands. |
-| `/quit` | Exit the CLI. |
+| `pay send <recipient> <satoshis>` | Send a BRC-29 payment. Recipient can be a 66-char hex identity key or a name/email resolved via `IdentityClient`. |
+| `pay receive` | List and accept all pending inbound payments. |
+| `pay identity` | Print your own identity public key (hex). |
+| `pay history` | Show past payment transactions. |
 
 ### Example: Send a Payment
 
 ```bash
-> /pay 02abc123...def 10000
-Sending 10,000 sats to 02abc123...def ...
+pay send 02abc123...def 10000
 Payment sent successfully!
 ```
 
 ### Example: Send by Name
 
-If the first argument is not a valid public key, the CLI uses `IdentityClient` to look it up as an identity attribute (name, email, paymail, etc.):
+If the recipient is not a valid public key, the CLI resolves it via `IdentityClient`:
 
 ```bash
-> /pay alice@example.com 5000
+pay send alice@example.com 5000
 Resolving alice@example.com ...
 Found identity key: 02abc123...def
-Sending 5,000 sats ...
 Payment sent successfully!
 ```
 
 ### Example: Receive Payments
 
 ```bash
-> /receive
-Checking for inbound payments ...
+pay receive
   [1] 2,500 sats from 03fed987...abc
   [2] 10,000 sats from 02abc123...def
 Accepting payment 1 ... done.
@@ -299,10 +288,17 @@ Accepting payment 2 ... done.
 2 payments received.
 ```
 
+### Example: Show Identity Key
+
+```bash
+pay identity
+02abc123def456...
+```
+
 ### How It Works
 
 - **Sending** uses `PeerPayClient.sendPayment({ recipient, amount })` which creates a BRC-29 transaction and delivers it to the recipient's Message Box.
-- **Receiving** uses `PeerPayClient.listIncomingPayments(messageBoxUrl)` to fetch pending payments, then `PeerPayClient.acceptPayment(payment)` to internalize each one into the wallet (calling `internalizeAction` under the hood).
+- **Receiving** uses `PeerPayClient.listIncomingPayments()` to fetch pending payments, then `PeerPayClient.acceptPayment(payment)` to internalize each one into the wallet (calling `internalizeAction` under the hood).
 - Both flows trigger standard BRC-100 permission prompts through the Gebunden bridge, so the user approves via Telegram as usual.
 
 ### Ports

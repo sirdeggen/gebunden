@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import readline from 'node:readline/promises'
-import { stdin as input, stdout as output } from 'node:process'
 import { WalletClient, IdentityClient } from '@bsv/sdk'
 import { PeerPayClient, IncomingPayment } from '@bsv/message-box-client'
 
@@ -35,60 +33,47 @@ async function resolveRecipient(target: string): Promise<string> {
   if (isHexPublicKey(target)) {
     return target
   }
-  process.stdout.write(`Resolving ${target} ...\n`)
-  const results = await identityClient.resolveByAttributes({ attributes: { name: target } })
+  process.stderr.write(`Resolving ${target} ...\n`)
+  const results = await identityClient.resolveByAttributes({ attributes: { any: target } })
   if (!results || results.length === 0) {
     throw new Error(`No identity found for "${target}"`)
   }
   const key: string = results[0].identityKey
-  process.stdout.write(`Found identity key: ${key}\n`)
+  process.stderr.write(`Found identity key: ${key}\n`)
   return key
+}
+
+function usage(): void {
+  console.error('Usage:')
+  console.error('  pay send <recipient> <satoshis>   Send a BRC-29 payment')
+  console.error('  pay receive                       List and accept inbound payments')
+  console.error('  pay identity                      Show your identity public key')
+  console.error('  pay history                       Show recent payment history')
+  console.error('')
+  console.error('recipient can be a 66-char hex identity key, or a name/email/paymail')
 }
 
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
-async function cmdPay(args: string[]): Promise<void> {
-  if (args.length < 2) {
-    console.log('Usage: /pay <recipient> <satoshis>')
-    console.log('  recipient — 66-char hex identity key, or a name/email to look up')
-    console.log('  satoshis  — integer amount in satoshis')
-    return
-  }
-  const [target, amountStr] = args
+async function cmdSend(target: string, amountStr: string): Promise<void> {
   const amount = Number.parseInt(amountStr, 10)
   if (Number.isNaN(amount) || amount <= 0) {
-    console.log('Error: satoshis must be a positive integer.')
-    return
+    console.error('Error: satoshis must be a positive integer.')
+    process.exit(1)
   }
 
-  let recipient: string
-  try {
-    recipient = await resolveRecipient(target)
-  } catch (err) {
-    console.log(`Error resolving recipient: ${(err as Error).message}`)
-    return
-  }
+  const recipient = await resolveRecipient(target)
 
-  process.stdout.write(`Sending ${amount.toLocaleString()} sats to ${recipient.slice(0, 16)}...\n`)
-  try {
-    await peerPay.sendPayment({ recipient, amount })
-    console.log('Payment sent successfully!')
-  } catch (err) {
-    console.log(`Error sending payment: ${(err as Error).message}`)
-  }
+  process.stderr.write(`Sending ${amount.toLocaleString()} sats to ${recipient.slice(0, 16)}...\n`)
+  await peerPay.sendPayment({ recipient, amount })
+  console.log('Payment sent successfully!')
 }
 
 async function cmdReceive(): Promise<void> {
-  process.stdout.write('Checking for inbound payments ...\n')
-  let payments: IncomingPayment[]
-  try {
-    payments = await peerPay.listIncomingPayments()
-  } catch (err) {
-    console.log(`Error listing payments: ${(err as Error).message}`)
-    return
-  }
+  process.stderr.write('Checking for inbound payments ...\n')
+  const payments: IncomingPayment[] = await peerPay.listIncomingPayments()
 
   if (!payments || payments.length === 0) {
     console.log('No pending payments.')
@@ -104,10 +89,10 @@ async function cmdReceive(): Promise<void> {
   let accepted = 0
   for (let i = 0; i < payments.length; i++) {
     const p = payments[i]
-    process.stdout.write(`Accepting payment ${i + 1} ... `)
+    process.stderr.write(`Accepting payment ${i + 1} ... `)
     try {
       await peerPay.acceptPayment(p)
-      process.stdout.write('done.\n')
+      process.stderr.write('done.\n')
       accepted++
     } catch {
       // Retry once with a fresh listing in case the token is stale
@@ -116,10 +101,10 @@ async function cmdReceive(): Promise<void> {
         const match = fresh.find((x: IncomingPayment) => String(x.messageId) === String(p.messageId))
         if (!match) throw new Error('Payment not found on refresh')
         await peerPay.acceptPayment(match)
-        process.stdout.write('done.\n')
+        process.stderr.write('done.\n')
         accepted++
       } catch (error_) {
-        process.stdout.write(`failed: ${(error_ as Error).message}\n`)
+        process.stderr.write(`failed: ${(error_ as Error).message}\n`)
       }
     }
   }
@@ -127,115 +112,62 @@ async function cmdReceive(): Promise<void> {
 }
 
 async function cmdIdentity(): Promise<void> {
-  try {
-    const result = await wallet.getPublicKey({ identityKey: true })
-    console.log(`Identity key: ${result.publicKey}`)
-  } catch (err) {
-    console.log(`Error fetching identity key: ${(err as Error).message}`)
-  }
+  const result = await wallet.getPublicKey({ identityKey: true })
+  console.log(result.publicKey)
 }
 
 async function cmdHistory(): Promise<void> {
-  try {
-    const response = await wallet.listActions({
-      labels: ['peerpay'],
-      labelQueryMode: 'any',
-      includeOutputs: true,
-      includeOutputLockingScripts: true,
-      limit: 20,
-    })
-    const actions = response?.actions ?? []
-    if (actions.length === 0) {
-      console.log('No payment history found.')
-      return
-    }
-    console.log('Recent payments:')
-    for (const action of actions) {
-      const sats: number = action.satoshis ?? 0
-      const dir = sats < 0 ? 'sent' : 'received'
-      const abs = Math.abs(sats)
-      console.log(`  ${dir.padEnd(8)} ${abs.toLocaleString().padStart(12)} sats  txid: ${action.txid?.slice(0, 16)}...`)
-    }
-  } catch (err) {
-    console.log(`Error fetching history: ${(err as Error).message}`)
-  }
-}
-
-function cmdHelp(): void {
-  console.log('')
-  console.log('Available commands:')
-  console.log('  /pay <recipient> <satoshis>  Send a BRC-29 payment')
-  console.log('  /receive                     List and accept inbound payments')
-  console.log('  /identity                    Show your identity public key')
-  console.log('  /history                     Show recent payment history')
-  console.log('  /help                        Show this help')
-  console.log('  /quit                        Exit')
-  console.log('')
-  console.log('recipient can be a 66-char hex identity key, or a name/email/paymail')
-  console.log(`Message Box: ${MESSAGE_BOX_URL}`)
-  console.log('')
-}
-
-// ---------------------------------------------------------------------------
-// REPL
-// ---------------------------------------------------------------------------
-
-async function main(): Promise<void> {
-  console.log('Gebunden Pay CLI — BRC-29 payments')
-  console.log(`Wallet: WalletClient('auto', 'pay')`)
-  console.log(`Message Box: ${MESSAGE_BOX_URL}`)
-  console.log("Type /help for available commands.\n")
-
-  const rl = readline.createInterface({ input, output, terminal: true })
-
-  rl.on('close', () => {
-    console.log('\nGoodbye.')
-    process.exit(0)
+  const response = await wallet.listActions({
+    labels: ['peerpay'],
+    labelQueryMode: 'any',
+    includeOutputs: true,
+    includeOutputLockingScripts: true,
+    limit: 20,
   })
-
-  while (true) {
-    let line: string
-    try {
-      line = await rl.question('> ')
-    } catch {
-      break
-    }
-
-    const trimmed = line.trim()
-    if (!trimmed) continue
-
-    const [cmd, ...args] = trimmed.split(/\s+/)
-
-    switch (cmd.toLowerCase()) {
-      case '/pay':
-        await cmdPay(args)
-        break
-      case '/receive':
-        await cmdReceive()
-        break
-      case '/identity':
-        await cmdIdentity()
-        break
-      case '/history':
-        await cmdHistory()
-        break
-      case '/help':
-        cmdHelp()
-        break
-      case '/quit':
-      case '/exit':
-        rl.close()
-        process.exit(0)
-        break
-      default:
-        console.log(`Unknown command: ${cmd}. Type /help for available commands.`)
-    }
+  const actions = response?.actions ?? []
+  if (actions.length === 0) {
+    console.log('No payment history found.')
+    return
+  }
+  for (const action of actions) {
+    const sats: number = action.satoshis ?? 0
+    const dir = sats < 0 ? 'sent' : 'received'
+    const abs = Math.abs(sats)
+    console.log(`${dir.padEnd(8)} ${abs.toLocaleString().padStart(12)} sats  txid: ${action.txid?.slice(0, 16)}...`)
   }
 }
+
+// ---------------------------------------------------------------------------
+// Entrypoint
+// ---------------------------------------------------------------------------
+
+const [, , subcmd, ...args] = process.argv
 
 try {
-  await main()
+  switch (subcmd) {
+    case 'send': {
+      const [target, amountStr] = args
+      if (!target || !amountStr) {
+        console.error('Usage: pay send <recipient> <satoshis>')
+        process.exit(1)
+      }
+      await cmdSend(target, amountStr)
+      break
+    }
+    case 'receive':
+      await cmdReceive()
+      break
+    case 'identity':
+      await cmdIdentity()
+      break
+    case 'history':
+      await cmdHistory()
+      break
+    default:
+      usage()
+      process.exit(subcmd ? 1 : 0)
+  }
 } catch (err) {
-  console.error('Fatal error:', (err as Error).message)
+  console.error(`Error: ${(err as Error).message}`)
   process.exit(1)
 }

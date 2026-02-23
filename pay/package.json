@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node --experimental-strip-types index.ts",
+    "start": "tsx index.ts",
     "dev": "tsx index.ts"
   },
   "dependencies": {
