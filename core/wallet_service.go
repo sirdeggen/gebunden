@@ -389,15 +389,6 @@ func (ws *WalletService) CallWalletMethod(method string, argsJSON string, origin
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", fmt.Errorf("invalid args: %w", e)
 		}
-		extra := map[string]interface{}{
-			"protocolID":    args.ProtocolID.Protocol,
-			"securityLevel": args.ProtocolID.SecurityLevel,
-			"keyID":         args.KeyID,
-		}
-		if err := checkPermission(gate, method, origin, "protocol", extra, 0,
-			fmt.Sprintf("Decrypt data using protocol: %s", args.ProtocolID.Protocol)); err != nil {
-			return "", err
-		}
 		result, err = w.Decrypt(ctx, args, origin)
 
 	case "createHmac":
