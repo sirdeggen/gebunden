@@ -36,7 +36,7 @@ async function resolveRecipient(target: string): Promise<string> {
     return target
   }
   process.stdout.write(`Resolving ${target} ...\n`)
-  const results = await identityClient.resolveByAttributes({ name: target }, 5)
+  const results = await identityClient.resolveByAttributes({ attributes: { name: target } })
   if (!results || results.length === 0) {
     throw new Error(`No identity found for "${target}"`)
   }
@@ -84,7 +84,7 @@ async function cmdReceive(): Promise<void> {
   process.stdout.write('Checking for inbound payments ...\n')
   let payments: IncomingPayment[]
   try {
-    payments = await peerPay.listIncomingPayments(MESSAGE_BOX_URL)
+    payments = await peerPay.listIncomingPayments()
   } catch (err) {
     console.log(`Error listing payments: ${(err as Error).message}`)
     return
@@ -112,7 +112,7 @@ async function cmdReceive(): Promise<void> {
     } catch {
       // Retry once with a fresh listing in case the token is stale
       try {
-        const fresh = await peerPay.listIncomingPayments(MESSAGE_BOX_URL)
+        const fresh = await peerPay.listIncomingPayments()
         const match = fresh.find((x: IncomingPayment) => String(x.messageId) === String(p.messageId))
         if (!match) throw new Error('Payment not found on refresh')
         await peerPay.acceptPayment(match)
@@ -128,9 +128,15 @@ async function cmdReceive(): Promise<void> {
 
 async function cmdBalance(): Promise<void> {
   try {
-    const response = await wallet.listActions({ labels: [], limit: 1 })
-    const total: number = (response as any).totalOutputSatoshis ?? 0
-    console.log(`Balance: ${Number(total).toLocaleString()} sats`)
+    const response = await wallet.listActions({
+      labels: ['peerpay'],
+      labelQueryMode: 'any',
+      includeOutputs: true,
+      limit: 1000,
+    })
+    const actions = response?.actions ?? []
+    const balance = actions.reduce((sum, a) => sum + (a.satoshis ?? 0), 0)
+    console.log(`Net peerpay balance: ${balance.toLocaleString()} sats`)
   } catch (err) {
     console.log(`Error fetching balance: ${(err as Error).message}`)
   }
